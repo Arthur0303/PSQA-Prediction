@@ -1,0 +1,191 @@
+data.xlsx Column Reference
+==========================
+
+Column-by-column notes for the workbook written by `extract_data_v7.py`. Where a source paper leaves DICOM details or multi-arc handling open, the convention actually implemented is spelled out here.
+
+General Notes
+-------------
+
+- Most complexity metrics are computed from the TPS RTPLAN DICOM file; columns tagged [RadCalc] are read from the RadCalc PDF report.
+- DICOM stores distances in mm. The spreadsheet converts AFW to cm and PA to cm^2; everything else keeps its native unit.
+- Reading direction: MCSv, AAV, LSV, LTi and LTMCS rise as modulation gets simpler. MU, PMU, LT, SAS, EM and PI rise with delivery burden or complexity. AFW and PA rise with wider or larger apertures, which usually means less small-aperture trouble, though a large field is not automatically a simple one.
+
+Shared DICOM calculation conventions
+------------------------------------
+
+- Device positions omitted after the first control point are carried forward from the preceding control point.
+- MLC apertures are clipped to the available X/Y or ASYMX/ASYMY jaws.
+- Continuously delivered VMAT metrics other than MCSv combine control points by trapezoidal MU weighting: each control point carries half of its two adjacent normalized MU intervals. MCSv is the exception; it averages adjacent control-point AAV and LSV values and weights their product by the MU delivered over that interval.
+- Metrics are computed per beam/arc first, then combined at plan level with BeamMeterset (beam MU) weights, unless the column says otherwise.
+- A leaf pair with any positive cross-jaw overlap counts as exposed. For AAV, LSV and SAS that is the whole story: they are gap/count metrics, and a partially exposed pair is not down-weighted by its exposed height. PA, AFW, EM and PI are geometric, so they do use the actual exposed leaf height.
+
+Multi-arc handling (RadCalc / [RadCalc] columns)
+------------------------------------------------
+
+A plan with more than one arc appears on the RadCalc sheet as one beam block per arc. DICOM metrics are computed per arc and MU-weighted at plan level; Gan is summed. Masi 2013 defines LT over a single arc and says nothing about combining arcs, so per-arc LT followed by BeamMeterset weighting is this study's own extension. MCS(Matlab) and ALPO(Matlab) deliberately use only the last beam and are not plan-level metrics.
+
+The RadCalc PDF columns collapse into the single output row as follows:
+
+- Taken as-is (one value per plan): ID, Date, Plan, Site, Rx, Fx, Dose, Energy (identical across arcs).
+- Summed across arcs: MU (Plan MU), CP (Number of Control Points).
+- MU-weighted average (weight = each arc's Plan MU): Diff(RadCalc), ModFactor, ALPO(RadCalc), AvgFieldSize (Eq. Sq.), AvgDep (Avg. Depth), AvgEquPathLength (Avg. Eff. Depth).
+- PMU needs no rule of its own: Du 2014 Eq.6 is defined on total plan MU, so it follows once MU is summed.
+
+For a single-arc plan all of this reduces to the arc's own values.
+
+Column Explanations
+-------------------
+
+1. ID [RadCalc]
+    Patient ID.
+
+2. Date [RadCalc]
+    Calculation date.
+
+3. Plan [RadCalc]
+    Full Calculation Name.
+
+4. Site [RadCalc]
+    Treatment site code taken from the calculation name. Example: ENDOMAR26 becomes ENDO.
+
+5. Energy [RadCalc]
+    Beam energy. Unit: MV.
+
+6. ArcCheck
+    Measurement-setup flag. Plans whose target is too long for a single ArcCHECK array are measured with two units; this column records which setup was used (1 = one unit, 2 = two). The script estimates it from the RTPLAN's maximum Y-jaw opening (2 when max Y1 opening plus max Y2 opening is at least 20.5 cm, otherwise 1), and the workbook value was corrected by hand where the setup actually used differed.
+
+7. ModFactor [RadCalc]
+    RadCalc's own modulation factor, read straight from the PDF line  `Mod Factor = ...`. Unitless. The formula is RadCalc's and is not recalculated here, so do not compare it directly with MCSv(Python) or MCS(Matlab).
+
+8. ALPO(Matlab)
+    Average leaf-pair opening from the RTPLAN. Unit: cm. Uses the plan's last beam only, assuming 80 leaf pairs at 5 mm spacing and keeping pairs whose centre lies inside the Y-jaw opening. Per control point it takes the mean absolute gap between the two MLC banks; adjacent control-point values are then averaged, each interval weighted by the change in CumulativeDoseReferenceCoefficient, and the result converted from mm to cm.
+
+9. ALPO(RadCalc) [RadCalc]
+    Average leaf-pair opening reported by RadCalc. Unit: cm.
+
+10. Diff(RadCalc) [RadCalc]
+    Percent difference read from the RadCalc report: (RadCalc MU - Plan MU) / Plan MU * 100. Positive when RadCalc calculates more MU than the plan asks for. No clinical acceptance threshold is applied at extraction.
+
+11. AvgFieldSize [RadCalc]
+    Equivalent square field size. Unit: cm.
+
+12. AvgDep [RadCalc]
+    Average calculation depth. Unit: cm.
+
+13. AvgEquPathLength [RadCalc]
+    Average effective depth, i.e. with heterogeneity correction included. Unit: cm.
+
+14. CP [RadCalc]
+    Number of control points.
+
+15. Rx [RadCalc]
+    Total prescribed dose. Unit: Gy.
+
+16. Fx [RadCalc]
+    Number of fractions.
+
+17. Dose [RadCalc]
+    Dose per fraction. Unit: Gy.
+
+18. GPR3mm
+    Gamma passing rate at 3%/3mm: how much of the measured distribution agrees with the TPS calculation within a 3% dose difference and 3 mm distance-to-agreement. The clinical acceptance threshold is 98%.
+
+19. GPR2mm
+    Gamma passing rate at 2%/2mm. Acceptance threshold 92%.
+
+20. GPR1mm
+    Gamma passing rate at 1%/1mm. Too strict for routine clinical use; recorded for analysis only.
+
+21. GPR3p2mm
+    Gamma passing rate at 3%/2mm.
+
+22. MU [RadCalc]
+    Plan monitor units, summed across arcs.
+
+23. Gan
+    Total gantry rotation from the RTPLAN control-point angles, in degrees, summed over arcs. Arcs crossing 0 degrees are handled by taking the shortest angular step between adjacent control points.
+
+24. Pass_Fail
+    Manual QA verdict: pass (plan accepted) or fail (plan rejected). Filled in by hand, not by the extractor.
+
+25. Pass
+    Numeric companion to Pass_Fail; suggested coding 0 = fail, 1 = uncertain, 2 = pass.
+
+26. PMU [Du 2014]
+    Plan MU normalized to a 2 Gy fraction: PMU = plan MU * 2 Gy / dose per fraction. Puts plans of different fractionation on the same MU footing.
+
+27. AAV [McNiven 2010, Masi 2013]
+    Aperture Area Variability. At each control point the opposing-leaf gaps are summed and divided by the sum of each pair's maximum gap over the arc, so apertures held near their widest score close to 1. A pair with no cross-jaw exposure contributes zero; a partially exposed pair still contributes its full gap (for equal-width, fully exposed leaves the gap ratio is then an area ratio). Trapezoidal MU weighting within each arc, BeamMeterset weighting across arcs.
+
+28. LSV [McNiven 2010, Masi 2013]
+    Leaf Sequence Variability. Position differences between adjacent exposed leaves, scored separately for each MLC bank and multiplied together. Raw mechanical positions are used, without clipping along the leaf-travel axis; a leaf counts once it has any cross-jaw exposure. MU weighting as for AAV. Smooth leaf profiles score high, jagged ones low.
+
+29. MCSv(Python) [Masi 2013]
+    Modulation Complexity Score for VMAT. For every adjacent control-point interval the mean AAV is multiplied by the mean LSV and the product weighted by the fraction of arc MU delivered in that interval; per-arc scores are BeamMeterset-weighted at plan level. Normally between 0 and 1, with 1 the simplest. Uses the same jaw-exposure convention as AAV and LSV.
+
+30. MCS(Matlab)
+    Modulation Complexity Score from the plan's last beam only. Keeps leaf pairs inside the Y-jaw opening, computes LSV and AAV from raw MLC positions, and averages adjacent control points weighted by the change in CumulativeDoseReferenceCoefficient. Assumes the fixed 80-pair / 5 mm geometry and never sees the other beams, so treat it as a last-beam cross-check rather than a plan metric.
+
+31. LT [Masi 2013]
+    Leaf Travel, in mm: the raw mechanical travel of each bank leaf summed over consecutive control points, per arc. A leaf counts only if its opposing pair opens inside the jaws at least once and the leaf itself moves more than 1e-9 mm; permanently closed and stationary leaves are excluded, so a static MLC has LT = 0. Multi-arc plans use BeamMeterset-weighted per-arc values. Masi 2013 defines LT for one arc only, so that aggregation is this implementation's extension (see Multi-arc handling above).
+
+32. LTi [Masi 2013]
+    Leaf Travel index: LTi = (1000 - LT) / 1000, using the plan-level LT above. Goes negative once LT exceeds 1000 mm.
+
+33. LTMCS [Masi 2013]
+    LTMCS = LTi * MCSv(Python), both at plan level. Inherits LTi's sign, so it too can be negative.
+
+34. AFW [Nguyen 2020]
+    Average Field Width, in cm. Jaw-clipped open aperture area divided by the summed exposed heights of the leaf pairs with positive gaps, per control point; MU weighting as usual, and the mm result is divided by 10 for the spreadsheet.
+
+35. SAS2 [Crowe 2014]
+    Small Aperture Score for gaps below 2 mm: N(0 < gap < 2 mm) / N(gap > 0) per control point, on jaw-clipped gaps. A leaf-pair count, not an area measure. MU-weighted as usual. High values mean many very small openings.
+
+36. SAS5 [Crowe 2014]
+    As SAS2, with the condition 0 < gap < 5 mm.
+
+37. SAS10 [Crowe 2014]
+    As SAS2, with 0 < gap < 10 mm.
+
+38. SAS20 [Crowe 2014]
+    As SAS2, with 0 < gap < 20 mm.
+
+39. PA_cm2 [Du 2014]
+    Plan Area, in cm^2. Aperture area per control point is the sum of jaw-clipped leaf gap times actual exposed leaf height; MU-weighted within and across arcs. Computed in mm^2, then divided by 100 for the spreadsheet.
+
+40. EM [Younge 2012]
+    Edge Metric, in 1/mm: boundary length divided by aperture area, in Younge's C1 = 0, C2 = 1 setting. The boundary is the true geometric one, including disconnected openings, but only edges formed by MLC leaf sides count; the two leaf-end edges of every open pair are excluded. MU-weighted within and across arcs. More edge per unit area, more complex the aperture.
+
+41. PI [Du 2014]
+    Plan Irregularity: PI_cp = perimeter^2 / (4 * pi * area) per control point, using the complete perimeter of the jaw-clipped aperture, disconnected openings included. MU-weighted within and across arcs. Dimensionless; a perfect circle gives 1, and the narrower or more ragged the aperture, the higher it climbs.
+
+42. PTV
+    Planning Target Volume from the selected RTSTRUCT contour, in cm^3: closed planar XY contour areas summed slice by slice and multiplied by the median contour-slice spacing. ROI selection tries, in order: an exact PTV dose suffix matching Rx, then the highest-dose exact PTV suffix, then a structure named exactly `PTV`, then names beginning with `PTV`. The first candidate at the best priority wins; several candidates at once produce a warning.
+
+43. CTV
+    Clinical Target Volume, in cm^3, using the same contour-volume method and selection priority as PTV but with `CTV` names.
+
+
+References
+----------
+
+[RadCalc]
+RadCalc independent dose calculation report.
+
+[McNiven 2010]
+McNiven, A. L., Sharpe, M. B., and Purdie, T. G., "A new metric for assessing IMRT modulation complexity and plan deliverability", Medical Physics 37, 505-515 (2010). DOI: 10.1118/1.3276775.
+
+[Masi 2013]
+Masi, L. et al., "Impact of plan parameters on the dosimetric accuracy of volumetric modulated arc therapy", Medical Physics 40, 071718 (2013). DOI: 10.1118/1.4810969.
+
+[Crowe 2014]
+Crowe, S. B. et al., "Treatment plan complexity metrics for predicting IMRT pre-treatment quality assurance results", Australasian Physical & Engineering Sciences in Medicine 37, 475-482 (2014). DOI: 10.1007/s13246-014-0274-9.
+
+[Du 2014]
+Du, W. et al., "Quantification of beam complexity in intensity-modulated radiation therapy treatment plans", Medical Physics 41, 021716 (2014). DOI: 10.1118/1.4861821.
+
+[Younge 2012]
+Younge, K. C. et al., "Penalization of aperture complexity in inversely planned volumetric modulated arc therapy", Medical Physics 39, 7160-7170 (2012). DOI: 10.1118/1.4762566.
+
+[Nguyen 2020]
+Nguyen, M. and Chan, G. H., "Quantified VMAT plan complexity in relation to measurement-based quality assurance results", Journal of Applied Clinical Medical Physics 21(11), 132-140 (2020). DOI: 10.1002/acm2.13048.
