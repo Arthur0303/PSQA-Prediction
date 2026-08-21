@@ -1,0 +1,9 @@
+﻿scheme,model_3mm,n_features_3mm,model_2mm,n_features_2mm,comparison,positive_class,negative_classes,n_pos_rows,n_neg_rows,n_points,auc_pooled,auc_repeat_mean,auc_repeat_std,ci95_lower,ci95_upper
+deployed,XGBoost,15,SVR,10,class2_vs_rest,2,1+0,62,62,620,0.839,0.8379,0.0179,0.769,0.9011
+deployed,XGBoost,15,SVR,10,class0_vs_rest,0,1+2,15,109,620,0.9126,0.9133,0.0048,0.79,0.9758
+deployed,XGBoost,15,SVR,10,class2_vs_class1,2,1,62,47,545,0.7914,0.7903,0.0233,0.7063,0.8688
+deployed,XGBoost,15,SVR,10,class0_vs_class1,0,1,15,47,310,0.843,0.845,0.0089,0.6752,0.9433
+baseline_lowest_mae,XGBoost,15,XGBoost,15,class2_vs_rest,2,1+0,62,62,620,0.8556,0.8539,0.0195,0.7874,0.915
+baseline_lowest_mae,XGBoost,15,XGBoost,15,class0_vs_rest,0,1+2,15,109,620,0.9089,0.9083,0.0167,0.7766,0.9764
+baseline_lowest_mae,XGBoost,15,XGBoost,15,class2_vs_class1,2,1,62,47,545,0.823,0.8205,0.0181,0.7425,0.8942
+baseline_lowest_mae,XGBoost,15,XGBoost,15,class0_vs_class1,0,1,15,47,310,0.8413,0.8411,0.0122,0.6655,0.9453
