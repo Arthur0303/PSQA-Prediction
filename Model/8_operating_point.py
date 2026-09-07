@@ -555,6 +555,36 @@ def plot_scatter(
     for ax, target in zip(axes, CLS_TARGETS):
         pred = matrices[target][configs[target]]
         true = measured[target].to_numpy(float)
+        upper = THRESHOLDS["class2"][target] + margins["class2"][target]
+        lower = THRESHOLDS["class0"][target] - margins["class0"][target]
+
+        # Use one numerical scale on both axes so displacement from the
+        # identity line and regression-to-the-mean compression are not
+        # distorted by unequal x/y limits.
+        extent_values = np.concatenate(
+            [
+                true,
+                pred.ravel(),
+                np.asarray(
+                    [
+                        THRESHOLDS["class2"][target],
+                        THRESHOLDS["class0"][target],
+                        upper,
+                        lower,
+                    ],
+                    dtype=float,
+                ),
+            ]
+        )
+        span = float(np.ptp(extent_values))
+        padding = max(0.6, 0.04 * span)
+        axis_lo = float(extent_values.min() - padding)
+        axis_hi = float(extent_values.max() + padding)
+        ax.plot(
+            [axis_lo, axis_hi], [axis_lo, axis_hi],
+            color="#777777", linewidth=0.9, zorder=0,
+        )
+
         for cls, style in LABEL_STYLE.items():
             mask = labels == cls
             ax.scatter(
@@ -565,8 +595,6 @@ def plot_scatter(
             )
         ax.axvline(THRESHOLDS["class2"][target], color=BASELINE, linewidth=1)
         ax.axvline(THRESHOLDS["class0"][target], color=BASELINE, linewidth=1)
-        upper = THRESHOLDS["class2"][target] + margins["class2"][target]
-        lower = THRESHOLDS["class0"][target] - margins["class0"][target]
         ax.axhline(upper, color=MUTED, linewidth=1, linestyle="--")
         ax.annotate(
             f"pred 2 above {upper:.2f}", (0.02, upper), xycoords=("axes fraction", "data"),
@@ -582,6 +610,9 @@ def plot_scatter(
         ax.set_title(f"{target}: {model} (n={n_features})", color=INK)
         ax.set_xlabel(f"Measured {target} (%)", color="#52514e")
         ax.set_ylabel(f"Out-of-fold predicted {target} (%)", color="#52514e")
+        ax.set_xlim(axis_lo, axis_hi)
+        ax.set_ylim(axis_lo, axis_hi)
+        ax.set_aspect("equal", adjustable="box")
     handles, names = axes[0].get_legend_handles_labels()
     fig.legend(
         handles, names, loc="lower center", ncol=3, frameon=False,

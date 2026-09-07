@@ -37,12 +37,14 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 MODEL_DIR = SCRIPT_DIR / "final_model"
 META_FILE = MODEL_DIR / "final_model_meta.json"
 INPUT_FILE = SCRIPT_DIR / "Data" / "new_plans.xlsx"
+# INPUT_FILE = SCRIPT_DIR / "Data" / "extra_plans_non_diss.xlsx"
 SHEET_NAME = "RadCalc"
 OUTPUT_FILE = SCRIPT_DIR / "predictions.csv"
 
 CLS_TARGETS = ("GPR3mm", "GPR2mm")
 ID_COLUMNS = ("ID", "Plan", "Date")  # carried through to the output if present
 ENERGY_COLUMN = "Energy"
+MAX_GPR_PERCENT = 100.0
 # One-hot columns used in training; any other Energy value (e.g. 6F) is the
 # reference category with all indicator columns at 0, matching step 3.
 ENERGY_ONE_HOT = {"Energy_10": "10", "Energy_6": "6"}
@@ -140,8 +142,12 @@ def main() -> None:
             for warning in out_of_range_features(row, model_meta["feature_ranges"]):
                 warnings_per_row[i][warning] = None
 
-    pred3 = np.asarray(predictions["GPR3mm"], dtype=float)
-    pred2 = np.asarray(predictions["GPR2mm"], dtype=float)
+    pred3 = np.minimum(
+        np.asarray(predictions["GPR3mm"], dtype=float), MAX_GPR_PERCENT
+    )
+    pred2 = np.minimum(
+        np.asarray(predictions["GPR2mm"], dtype=float), MAX_GPR_PERCENT
+    )
     is_class2 = (pred3 >= upper["GPR3mm"]) & (pred2 >= upper["GPR2mm"])
     if class0_enabled:
         is_class0 = (pred3 < lower["GPR3mm"]) & (pred2 < lower["GPR2mm"])
